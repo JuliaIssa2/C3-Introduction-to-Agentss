@@ -1,6 +1,8 @@
 # Cedar & Crumb Business Assistant
 
-This repository contains the complete C3 agent assignment: a fictional business profile, a clearly separated persona and instruction set, a three-way message router, two OpenAI tool functions, short-term chat memory, a Gradio interface, and the optional reflection step.
+This repository contains the complete C3 agent assignment: a fictional business profile, separate persona and instruction blocks, a three-way router, two tool functions, short-term memory, a Gradio interface, and an optional reflection step.
+
+The app uses **Gemini through Google's OpenAI-compatible endpoint**. The `openai` Python package is used only as a compatible client library; the app does not use an OpenAI API key or OpenAI billing.
 
 ## Project files
 
@@ -15,52 +17,70 @@ This repository contains the complete C3 agent assignment: a fictional business 
 ## Run locally
 
 1. Create and activate a Python 3.11 or newer virtual environment.
-2. Install dependencies:
+2. Install the dependencies:
 
    ```bash
    pip install -r requirements.txt
    ```
 
-3. Open `.env` and add your OpenAI API key:
+3. Add the following variables to your local `.env` file:
 
    ```text
-   OPENAI_API_KEY=your_real_key_here
-   OPENAI_MODEL=gpt-4o-mini
-   ENABLE_REFLECTION=true
+   GEMINI_API_KEY=your_gemini_api_key
+   OPENAI_MODEL=gemini-3.5-flash-lite
+   ENABLE_REFLECTION=false
    ```
 
-4. Start the app:
+   `OPENAI_MODEL` is the configuration name expected by the app, but its value is a Gemini model. Never commit `.env` or place the real key in the notebook.
+
+4. Start the Gradio app:
 
    ```bash
    python app.py
    ```
 
-The app starts even when the key is missing; the chat will display a configuration reminder until a valid key is added and the app is restarted.
+The interface starts without a key. General business questions still work because they are answered locally. Lead and feedback routes display a configuration reminder until `GEMINI_API_KEY` is available and the app is restarted.
 
-## Router behavior
+## Agent behavior
 
-The router deliberately uses simple, explainable heuristics:
+The router uses simple, explainable heuristics and returns exactly one assignment category:
 
-- General question: business-information questions such as hours, services, or delivery.
-- Lead collection: order, quote, booking, custom-cake, corporate-order, contact, or email signals.
-- Feedback/unanswered question: complaint, issue, suggestion, or feedback signals. If a general question is not covered by the business sources, the model is instructed to call the same feedback tool.
+- `general_question` - known business questions are answered directly from verified Cedar & Crumb information, without an API call. An unknown general question is logged locally with `record_feedback` instead of being invented.
+- `lead_collection` - Gemini receives the last eight user/assistant messages and may call `record_customer_interest` after the customer's name, email, and request are known.
+- `feedback_unanswered` - Gemini receives the short-term history and is required to call `record_feedback`.
 
-## Tool logs
+The Gemini client is created with the OpenAI-compatible endpoint:
+
+```text
+https://generativelanguage.googleapis.com/v1beta/openai/
+```
+
+## Tools and logs
 
 - `record_customer_interest(email, name, message)` appends to `data/leads.jsonl`.
 - `record_feedback(question)` appends to `data/feedback.jsonl`.
 
 Both tools also print their activity in the terminal. The JSONL files are ignored by Git so customer data is not committed.
 
+## Optional reflection bonus
+
+The reflection code is included but disabled in the standard configuration:
+
+```text
+ENABLE_REFLECTION=false
+```
+
+Set it to `true` locally and restart the app to demonstrate the bonus. Reflection applies after Gemini prepares a lead or feedback reply, makes one additional Gemini request, and prints both the original draft and revised reply. Deterministic general-question replies do not use reflection.
+
 ## Suggested video demo
 
-1. Run the router demo cell in the notebook.
-2. Ask: `What are your opening hours?`
-3. Ask: `I need a custom cake for 20 people.` Then provide a name and email when prompted, and show the lead tool log.
-4. Ask: `I have a suggestion about your packaging.` Show the feedback tool log.
-5. Ask an unknown question such as `Do you offer a loyalty card?` Show that it is logged for review instead of invented.
-6. Show the terminal's `[REFLECTION]` original and revised reply lines.
+1. Run the router demonstration cell in the notebook.
+2. Ask `What are your opening hours?` and show that it works locally.
+3. Ask `I need a custom cake for 20 people.` Then provide a name and email and show the lead tool log.
+4. Ask `I have a suggestion about your packaging.` Show the feedback tool log.
+5. Ask `Do you offer a loyalty card?` Show that the unknown question is logged instead of answered with invented information.
+6. Optional bonus: set `ENABLE_REFLECTION=true`, restart, repeat a lead or feedback prompt, and show the `[REFLECTION]` log lines.
 
 ## Hugging Face Spaces bonus
 
-Create a Gradio Space, upload the repository without `.env`, and add `OPENAI_API_KEY`, `OPENAI_MODEL`, and `ENABLE_REFLECTION` as Space secrets/variables. The Space will use `app.py` automatically.
+Create a Gradio Space and upload the repository without `.env`. Add `GEMINI_API_KEY` as a Space secret and set `OPENAI_MODEL=gemini-3.5-flash-lite` and `ENABLE_REFLECTION=false` as variables. The Space will use `app.py` as the application entry point.
